@@ -1,0 +1,24 @@
+# Package Overview
+package_name: src
+
+# Data Files for Training and Testing
+
+# Variables
+# The variable we are attempting to predict (Survival)
+
+pipeline_name: loan_approval_classifier
+pipeline_save_file: loan_approval_classifier_model_output_v
+
+features:      # final features to be use
+
+num_vars:
+
+cat_vars:
+
+unused_fields:  # Features to drop before pipeline
+
+# set train/test split
+
+# to set the random seed
+
+# alogrithm parameters like n_estimators and max_depth

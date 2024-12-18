@@ -1,5 +1,7 @@
 from typing import List, Optional, Tuple, Union
 import pandas as pd
+from pydantic import BaseModel
+from src.processing.data_manager import pre_pipeline_preparation
 
 
 def validate_inputs(*, input_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[dict]]:
@@ -19,7 +21,21 @@ def validate_inputs(*, input_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[d
         Tuple[pd.DataFrame, Optional[dict]]: A tuple containing the validated DataFrame 
         and a dictionary of errors if validation fails, otherwise None.
     """
-    pass
+    errors = {}
+    # Step 1: Print the shape and columns for debugging
+    print(f"Input DataFrame Shape: {input_df.shape}")
+    print(f"Input DataFrame Columns: {input_df.columns.tolist()}")
+    
+    # Step 2: Apply preprocessing
+    preprocessed_df = pre_pipeline_preparation(df=input_df)
+
+    # Step 3: Validation using Pydantic (schema validation)
+    try:
+        validated_data = MultipleDataInputs(inputs=[DataInputSchema(**row) for _, row in preprocessed_df.iterrows()])
+        return preprocessed_df, None
+    except Exception as e:
+        errors = str(e)
+        return None, errors
 
 
 class DataInputSchema(BaseModel):

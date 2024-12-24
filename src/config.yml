@@ -16,16 +16,15 @@ mode_config:
 # Feature Configuration
 features:
   num_vars:
+    - BorrowerTotalMonthlyIncome
+    - BorrowerAge
     - CoBorrowerTotalMonthlyIncome
     - CoBorrowerAge
     - CoBorrowerYearsInSchool
-    - BorrowerTotalMonthlyIncome
-    - BorrowerAge
     - DTI
     - CLTV
     - CreditScore
     - TotalLoanAmount
-    - Approved
   cat_vars:
     - LeadSourceGroup
     - Group

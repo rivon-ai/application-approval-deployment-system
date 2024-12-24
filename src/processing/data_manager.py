@@ -131,3 +131,32 @@ def remove_old_pipelines(*, files_to_keep: List[str], directory: str) -> None:
         
     except Exception as e:
         print(f"Error occurred while removing old pipelines: {e}")
+
+# Function for user input (same as before)
+def get_user_input():
+    BorrowerTotalMonthlyIncome = float(input("Enter Borrower Total Monthly Income: "))
+    BorrowerAge = float(input("Enter Borrower Age: "))
+    CoBorrowerTotalMonthlyIncome = float(input("Enter Co-Borrower Total Monthly Income: "))
+    CoBorrowerAge = float(input("Enter Co-Borrower Age: "))
+    CoBorrowerYearsInSchool = float(input("Enter Co-Borrower Years In School: "))
+    DTI = float(input("Enter DTI (Debt-to-Income Ratio Range ): "))
+    CLTV = float(input("Enter CLTV (Loan-to-Value Ratio): "))
+    CreditScore = float(input("Enter Credit Score: "))
+    TotalLoanAmount = float(input("Enter Total Loan Amount: "))
+    LeadSourceGroup = input("Enter Lead Source Group (TV, Self Sourced, Internet, Radio, Referral, Repeat Client, Direct Mail, 3rd Party, Social Media): ")
+    Group = input("Enter Group (Admin, Loan Coordinator, Refinance Team - #number): ")
+    LoanPurpose = input("Enter Loan Purpose (Purchase, VA IRRRL, Refinance Cash-out, FHA Streamlined Refinance): ")
+    return {
+        "BorrowerTotalMonthlyIncome": BorrowerTotalMonthlyIncome,
+        "BorrowerAge": BorrowerAge,
+        "CoBorrowerTotalMonthlyIncome": CoBorrowerTotalMonthlyIncome,
+        "CoBorrowerAge": CoBorrowerAge,
+        "CoBorrowerYearsInSchool": CoBorrowerYearsInSchool,
+        "DTI": DTI,
+        "CLTV": CLTV,
+        "CreditScore": CreditScore,
+        "TotalLoanAmount": TotalLoanAmount,
+        "LeadSourceGroup": LeadSourceGroup,
+        "Group": Group,
+        "LoanPurpose": LoanPurpose,
+        }   

@@ -65,6 +65,7 @@ class MissValImputer(BaseEstimator, TransformerMixin):
         pd.DataFrame
             Transformed DataFrame with imputed missing values.
         """
+        # Impute the missing values
         X[self.numerical_cols] = self.numerical_imputer.transform(X[self.numerical_cols])
         X[self.categorical_cols] = self.categorical_imputer.transform(X[self.categorical_cols])
 
@@ -253,18 +254,18 @@ class CategoricalEncoder(BaseEstimator, TransformerMixin):
 
 # Custom StandardScalerWithExclusion to exclude specific column from scaling
 class StandardScalerCustom(BaseEstimator, TransformerMixin):
-    def __init__(self, exclude_column):
+    def __init__(self, exclude_column:str = None):
         self.exclude_column = exclude_column
         self.scaler = StandardScaler()
 
     def fit(self, X, y=None):
-        columns_to_scale = X.drop(columns=self.exclude_column).columns
+        columns_to_scale = X.columns
         self.scaler.fit(X[columns_to_scale])
         
         return self
 
     def transform(self, X):
-        columns_to_scale = X.drop(columns=self.exclude_column).columns
+        columns_to_scale = X.columns
         X[columns_to_scale] = self.scaler.transform(X[columns_to_scale])
         
         return X

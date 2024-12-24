@@ -27,10 +27,11 @@ def build_pipeline() -> Pipeline:
         Pipeline: A scikit-learn pipeline object.
     """
     pipeline_steps = [
-        ('knn_imputer', MissValImputer(numerical_cols=path.config.features.num_vars, categorical_cols=path.config.features.cat_vars, n_neighbors=path.config.mode_config.n_neighbors)),
+        ('knn_imputer', MissValImputer(numerical_cols=path.config.features.num_vars, categorical_cols=path.config.features.cat_vars, 
+                                       n_neighbors=path.config.mode_config.n_neighbors)),
         ('ohe', CategoricalEncoder(categorical_cols=path.config.features.cat_vars)),
         ('outlier_imputer', OutlierHandler(method='median')),
-        ('scaler', StandardScalerCustom(exclude_column=path.config.features.unused_fields))
+        ('scaler', StandardScalerCustom())
 
     ]
     return Pipeline(steps=pipeline_steps)

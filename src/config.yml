@@ -2,23 +2,34 @@
 package_name: src
 
 # Data Files for Training and Testing
+app_config:
+  data_file: datasets/data.csv
+  save_model_directory: 'trained_models'
+# Model Configuration
+mode_config:
+  model_name: 'loan_approval_classifier.pkl'
+  pipeline_name: 'loan_approval_pipeline.pkl'
+  file_extension: '.pkl'
+  n_neighbors: 5
+  test_size: 0.2
+  random_state: 42
+# Feature Configuration
+features:
+  num_vars:
+    - BorrowerTotalMonthlyIncome
+    - BorrowerAge
+    - CoBorrowerTotalMonthlyIncome
+    - CoBorrowerAge
+    - CoBorrowerYearsInSchool
+    - DTI
+    - CLTV
+    - CreditScore
+    - TotalLoanAmount
+  cat_vars:
+    - LeadSourceGroup
+    - Group
+    - LoanPurpose
+  unused_fields:
+    - Approved
 
-# Variables
-# The variable we are attempting to predict (Survival)
 
-pipeline_name: loan_approval_classifier
-pipeline_save_file: loan_approval_classifier_model_output_v
-
-features:      # final features to be use
-
-num_vars:
-
-cat_vars:
-
-unused_fields:  # Features to drop before pipeline
-
-# set train/test split
-
-# to set the random seed
-
-# alogrithm parameters like n_estimators and max_depth

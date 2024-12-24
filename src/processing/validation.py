@@ -1,6 +1,6 @@
 from typing import List, Optional, Tuple, Union
 import pandas as pd
-
+from pydantic import BaseModel, ValidationError
 
 def validate_inputs(*, input_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[dict]]:
     """Validate the input DataFrame for model compatibility.
@@ -19,22 +19,42 @@ def validate_inputs(*, input_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[d
         Tuple[pd.DataFrame, Optional[dict]]: A tuple containing the validated DataFrame 
         and a dictionary of errors if validation fails, otherwise None.
     """
-    pass
+    errors = {}
+
+    try:
+        # Print the shape and columns for debugging
+        print(f"Input Data Shape: {input_df.shape}")
+        print(f"Columns: {input_df.columns.tolist()}")
+
+        # Validate against schema using Pydantic
+        input_schema = MultipleDataInputs(inputs=[DataInputSchema(**row) for row in input_df.to_dict(orient='records')])
+
+        # Convert the validated input data into a DataFrame to be passed to the model
+        validated_input_df = pd.DataFrame([input.dict() for input in input_schema.inputs])
+
+        # Return the validated data (both the original and the validated DataFrame)
+        return validated_input_df, None  # Returning None for no errors
+    
+    except ValidationError as e:
+        # If validation fails, capture the errors
+        errors = {"validation_errors": e.errors()}
+        return input_df, errors
 
 
 class DataInputSchema(BaseModel):
-    BorrowerAge: Optional[int]
-    CreditScore: Optional[int]
-    LoanPurpose: Optional[str]
-    LoanType: Optional[str]
+    CoBorrowerTotalMonthlyIncome: Optional[float]
+    CoBorrowerAge: Optional[int]
+    CoBorrowerYearsInSchool: Optional[int]
     BorrowerTotalMonthlyIncome: Optional[float]
-    CLTV: Optional[int]
+    BorrowerTotalMonthlyIncome: Optional[float]
+    BorrowerAge: Optional[int]
     DTI: Optional[int]
-    ZipCode: Optional[str]
+    CLTV: Optional[int]
+    CreditScore: Optional[int]
+    TotalLoanAmount: Optional[int]
     LeadSourceGroup: Optional[str]
-    Cabin: Optional[Union[str, float]]
-    BorrowerOwnRent: Optional[str]
-    Education: Optional[str]
+    Group: Optional[str]
+    LoanPurpose: Optional[str]
 
 
 class MultipleDataInputs(BaseModel):

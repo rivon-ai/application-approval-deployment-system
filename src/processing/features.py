@@ -1,9 +1,12 @@
 import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
+import numpy as np
+from sklearn.impute import SimpleImputer, KNNImputer
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 class MissValImputer(BaseEstimator, TransformerMixin):
     """Custom imputer for handling missing values in numerical and categorical variables."""
-    def __init__(self, num_vars: list, cat_vars: list):
+    def __init__(self, numerical_cols, categorical_cols, n_neighbors: int):
         """
         Initialize the imputer for numerical and categorical variables.
 
@@ -14,51 +17,63 @@ class MissValImputer(BaseEstimator, TransformerMixin):
         cat_vars: list
             List of categorical variable names.
         """
-        pass
+        self.numerical_cols = numerical_cols
+        self.categorical_cols = categorical_cols
+        self.n_neighbors = n_neighbors
+
+        self.numerical_imputer = KNNImputer(n_neighbors=self.n_neighbors)
+        self.categorical_imputer = SimpleImputer(strategy='most_frequent')
 
     def fit(self, X: pd.DataFrame, y: pd.Series = None):
-        # Store mean and standard deviation for numerical variables
         """
-        Compute the mean and standard deviation for numerical variables and mode
-        values for categorical variables for missing value imputation.
+        Fit the imputer to the data.
+
+        This function prepares the KNNImputer for numerical variables 
+        and SimpleImputer for categorical variables.
 
         Parameters
         ----------
         X : pd.DataFrame
-            Input dataset.
+            The input data with missing values.
         y : pd.Series, optional
-            Target variable, by default None.
+            Target variable (not used here).
 
         Returns
         -------
         self
             Returns the instance itself.
         """
-        pass
+        self.numerical_imputer.fit(X[self.numerical_cols])
+        self.categorical_imputer.fit(X[self.categorical_cols])
+        
+        return self
 
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
         """
         Impute missing values in the DataFrame for both numerical and categorical variables.
 
-        For numerical variables, missing values are imputed using a random distribution
-        based on the mean and standard deviation of the variable. For categorical variables,
-        missing values are imputed with the mode.
+        The numerical variables will be imputed using KNNImputer and the categorical variables 
+        will be imputed using SimpleImputer with the most frequent strategy.
 
         Parameters
         ----------
         X : pd.DataFrame
-            Input dataset with potential missing values.
+            The dataset with missing values.
 
         Returns
         -------
         pd.DataFrame
             Transformed DataFrame with imputed missing values.
         """
-        pass
+        # Impute the missing values
+        X[self.numerical_cols] = self.numerical_imputer.transform(X[self.numerical_cols])
+        X[self.categorical_cols] = self.categorical_imputer.transform(X[self.categorical_cols])
+
+        return X
 
 
-class OutlierHandler:
-    def __init__(self, num_vars: list):
+class OutlierHandler(BaseEstimator, TransformerMixin):
+    def __init__(self, method='median'):
         """
         Initialize OutlierHandler with the given numerical features.
 
@@ -67,7 +82,7 @@ class OutlierHandler:
         num_vars : list
             List of numerical feature names.
         """
-        pass
+        self.method = method
 
     def identify_outliers(self, df, clmn):
         """
@@ -84,6 +99,7 @@ class OutlierHandler:
             The name of the column in which to identify outliers.
         """
         pass
+
 
     def treat_outliers(self, df, clmn, method='mean'):
         """
@@ -129,7 +145,7 @@ class OutlierHandler:
         self
             Returns the instance with stored outlier information.
         """
-        pass
+        return self
 
     def transform(self, X):
         # Treat outliers during transform
@@ -150,10 +166,35 @@ class OutlierHandler:
         pd.DataFrame
             Transformed DataFrame with outliers treated.
         """
-        pass
+        X_transformed = X.copy()
+        
+        # Detect and impute outliers only for numeric columns
+        for col in X_transformed.select_dtypes(include=[np.number]).columns:
+            Q1 = X_transformed[col].quantile(0.25)
+            Q3 = X_transformed[col].quantile(0.75)
+            IQR = Q3 - Q1
+            lower_bound = Q1 - 1.5 * IQR
+            upper_bound = Q3 + 1.5 * IQR
+            
+            outliers = X_transformed[(X_transformed[col] < lower_bound) | (X_transformed[col] > upper_bound)].index
+            
+            # Impute the outliers with the specified method
+            if len(outliers) > 0:
+                if self.method == 'median':
+                    impute_value = X_transformed[col].median()
+                elif self.method == 'mean':
+                    impute_value = X_transformed[col].mean()
+                else:
+                    raise ValueError("Invalid method. Choose 'median' or 'mean'.")
+                
+                X_transformed.loc[outliers, col] = impute_value
+        
+        return X_transformed
+        
+
 
 class CategoricalEncoder(BaseEstimator, TransformerMixin):
-    def __init__(self, cat_vars: list):
+    def __init__(self, categorical_cols):
         """
         Initialize the CategoricalEncoder with the given categorical feature names.
 
@@ -169,21 +210,18 @@ class CategoricalEncoder(BaseEstimator, TransformerMixin):
         encoder : None
             The OneHotEncoder object used for encoding categorical features.
         """
-        pass
+        self.categorical_cols = categorical_cols
+        self.ohe = OneHotEncoder(drop='first', sparse_output=False)
 
     def fit(self, X, y=None):
         """
-        Fit the CategoricalEncoder by performing one-hot encoding on the categorical features.
-
-        This method initializes and fits the OneHotEncoder to the specified categorical
-        variables in the input DataFrame, preparing the encoder for transforming
-        the data during the transform step.
+        Fit the OneHotEncoder to the categorical features.
 
         Parameters
         ----------
         X : pd.DataFrame
             Input DataFrame containing the data with categorical features.
-        y : None
+        y : None, optional
             Not used, present here for compatibility with sklearn pipelines.
 
         Returns
@@ -191,14 +229,12 @@ class CategoricalEncoder(BaseEstimator, TransformerMixin):
         self
             Returns the instance with the fitted OneHotEncoder.
         """
-        pass
+        self.ohe.fit(X[self.categorical_cols])
+        return self
 
     def transform(self, X):
         """
-        Transform the given DataFrame by one-hot encoding the categorical features.
-        This method takes in a DataFrame with categorical features and encodes
-        them using the OneHotEncoder. The method returns a new DataFrame with
-        the encoded categorical features and the non-categorical features.
+        Transform the input DataFrame by one-hot encoding the categorical features.
 
         Parameters
         ----------
@@ -210,4 +246,26 @@ class CategoricalEncoder(BaseEstimator, TransformerMixin):
         pd.DataFrame
             Transformed DataFrame with the categorical features encoded.
         """
-        pass
+        X[self.categorical_cols] = X[self.categorical_cols].fillna(0)
+        encoded_cols = pd.DataFrame(self.ohe.transform(X[self.categorical_cols]), columns=self.ohe.get_feature_names_out(self.categorical_cols))
+        X = X.drop(columns=self.categorical_cols)
+        X = pd.concat([X, encoded_cols], axis=1)
+        return X
+
+# Custom StandardScalerWithExclusion to exclude specific column from scaling
+class StandardScalerCustom(BaseEstimator, TransformerMixin):
+    def __init__(self, exclude_column:str = None):
+        self.exclude_column = exclude_column
+        self.scaler = StandardScaler()
+
+    def fit(self, X, y=None):
+        columns_to_scale = X.columns
+        self.scaler.fit(X[columns_to_scale])
+        
+        return self
+
+    def transform(self, X):
+        columns_to_scale = X.columns
+        X[columns_to_scale] = self.scaler.transform(X[columns_to_scale])
+        
+        return X

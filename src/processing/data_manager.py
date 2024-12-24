@@ -1,15 +1,19 @@
 import pandas as pd
 from sklearn.pipeline import Pipeline
+from config.core import ConfigLoader
 import os
-import pickle
+import joblib
 from typing import List
 
 
+# Loading Configuration from config.yml
+config_path = "config.yml"
+path = ConfigLoader(config_path)
+
 def data_sanity_check(df: pd.DataFrame) -> pd.DataFrame:
     # 1. Remove duplicate records from the dataset (LoanNumber)
-    df = df.drop_duplicates(subset=["LoanNumber"]) 
+    df = df.drop_duplicates(subset=['LoanNumber'], keep='first') 
     # 2. Filter out wrong BorrowerYearsInSchool records like > 1
-    df = df[df["BorrowerYearsInSchool"] <= 1]
     # 3. Strip off white space from LoanPurpose and LoanType
     df["LoanPurpose"] = df["LoanPurpose"].str.strip()
     df["LoanType"] = df["LoanType"].str.strip()
@@ -21,18 +25,16 @@ def data_sanity_check(df: pd.DataFrame) -> pd.DataFrame:
 
 def data_transformation(df: pd.DataFrame):
     # 1. Create an Approved column using ApprovalDate if not null else 0
-    df['Approved'] = df['ApprovalDate'].notnull().astype(int)
+    df['Approved'] = df['ApprovalDate'].apply(lambda x: 1 if pd.notnull(x) else 0)
+    df['Approved'] = df['Approved'].astype(int)
     # 2. Recategorize LoanPurpose column like ['Refinance', 'Purchase'] -> ['Refinance', 'Purchase']
-    df['LoanPurpose'] = df['LoanPurpose'].map({'Refinance': 'Refinance', 'Purchase': 'Purchase'})
     # 3. Calculate difference between current date and DateAdded in days and create a new column 'Diff'
-    df['Diff'] = (pd.to_datetime('today') - pd.to_datetime(df['DateAdded'])).dt.days
     # 4. Update 'BorrowerOwnRent' column like ['Own', 'Rent'] -> ['Own', 'Rent']
-    df['BorrowerOwnRent'] = df['BorrowerOwnRent'].map({'Own': 'Own', 'Rent': 'Rent'})
     return df
 
 def filter_extreme_vals(df: pd.DataFrame):
     # 1. Filter out extreme outliers from the columns like ['CLTV', 'TotalLoanAmount', 'CreditScore', 'TotalIncome']
-    for col in ['CLTV', 'TotalLoanAmount', 'CreditScore', 'TotalIncome']:
+    for col in ['CLTV', 'TotalLoanAmount', 'CreditScore']:
         q1 = df[col].quantile(0.25)
         q3 = df[col].quantile(0.75)
         iqr = q3 - q1
@@ -41,11 +43,6 @@ def filter_extreme_vals(df: pd.DataFrame):
         df = df[(df[col] >= lower_bound) & (df[col] <= upper_bound)]
     return df
 
-def feature_selection(df: pd.DataFrame):
-    # 1. Select relevant features for the model
-    df = df[['CoBorrowerTotalMonthlyIncome', 'CoBorrowerAge', 'CoBorrowerYearsInSchool','BorrowerTotalMonthlyIncome', 'BorrowerAge', 
-             'DTI', 'CLTV', 'CreditScore', 'TotalLoanAmount', 'LoanApproved', 'LeadSourceGroup','Group','LoanPurpose']]
-    return df
 
 def pre_pipeline_preparation(*, df: pd.DataFrame) -> pd.DataFrame:
     # 1. data_sanity_check()
@@ -53,9 +50,7 @@ def pre_pipeline_preparation(*, df: pd.DataFrame) -> pd.DataFrame:
     # 2. data_transformation()
     df = data_transformation(df)
     # 3. filter_extreme_vals()
-    df = filter_extreme_vals(df)
-    # 4. feature_selection()
-    df = feature_selection(df)
+    # df = filter_extreme_vals(df)
     return df
 
 
@@ -72,46 +67,67 @@ def load_dataset(*, file_name: str) -> pd.DataFrame:
     return df
 
 
-def save_pipeline(*, pipeline_to_persist: Pipeline) -> None:
+def save_pipeline(*, pipeline_to_persist: Pipeline, model_to_persist: object) -> None:
     """Persist the pipeline.
     Saves the versioned model, and overwrites any previous
     saved models. This ensures that when the package is
     published, there is only one trained model that can be
     called, and we know exactly how it was built.
     """
-    model_filename = "trained_model.pkl"
-    output_dir = "trained_models"
-    
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
+    try:
+        # Define file paths from config
+        pipeline_file = os.path.join(path.config.app_config.save_model_directory, path.config.mode_config.pipeline_name)
+        model_file = os.path.join(path.config.app_config.save_model_directory, path.config.mode_config.model_name)
+        
+        # Save the entire pipeline
+        joblib.dump(pipeline_to_persist, pipeline_file)
+        print(f"Pipeline saved to {pipeline_file}")
+        
+        # Save the model separately
+        joblib.dump(model_to_persist, model_file)
+        print(f"Model saved to {model_file}")
+        
+    except Exception as e:
+        print(f"Error occurred while saving the pipeline and model: {e}")
 
-    with open(os.path.join(output_dir, model_filename), 'wb') as f:
-        pickle.dump(pipeline_to_persist, f)
-    print(f"Pipeline saved at {os.path.join(output_dir, model_filename)}")
 
-
-def load_pipeline(*, file_name: str) -> Pipeline:
+def load_pipeline(*, pipeline_file: str, model_file: str) -> Pipeline:
     """Load a persisted pipeline."""
-    model_filename = os.path.join("trained_models", file_name)
-    if not os.path.exists(model_filename):
-        raise FileNotFoundError(f"Pipeline file {model_filename} not found.")
-    
-    with open(model_filename, 'rb') as f:
-        return pickle.load(f)
+    try:
+        # Load the pipeline (preprocessing steps)
+        pipeline = joblib.load(pipeline_file)
+        print(f"Pipeline loaded from {pipeline_file}")
+        
+        # Load the model (final estimator)
+        model = joblib.load(model_file)
+        print(f"Model loaded from {model_file}")
+        
+        return pipeline, model
+    except Exception as e:
+        print(f"Error occurred while loading the pipeline and model: {e}")
+        return None, None
 
 
-def remove_old_pipelines(*, files_to_keep: List[str]) -> None:
+def remove_old_pipelines(*, files_to_keep: List[str], directory: str) -> None:
     """
     Remove old model pipelines.
     This is to ensure there is a simple one-to-one
     mapping between the package version and the model
     version to be imported and used by other applications.
     """
-    model_dir = "trained_models"
-    all_files = os.listdir(model_dir)
-    
-    for file in all_files:
-        if file not in files_to_keep:
-            file_path = os.path.join(model_dir, file)
-            os.remove(file_path)
-            print(f"Removed old pipeline: {file_path}")
+    try:
+        # Get all files in the specified directory
+        all_files = os.listdir(directory)
+
+        # Loop through all files in the directory
+        for file in all_files:
+            file_path = os.path.join(directory, file)
+            
+            # Check if the file is not in the list of files to keep
+            if file not in files_to_keep and (file.endswith(path.config.mode_config.file_extension)):  # Assuming .pkl or .joblib extension
+                # Remove the old pipeline or model file
+                os.remove(file_path)
+                print(f"Removed old file: {file}")
+        
+    except Exception as e:
+        print(f"Error occurred while removing old pipelines: {e}")

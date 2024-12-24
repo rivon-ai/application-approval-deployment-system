@@ -19,4 +19,4 @@ class Config(BaseModel):
     """Master config object."""
 
     app_config: AppConfig
-    model_config: ModelConfig
+    mode_config: ModelConfig

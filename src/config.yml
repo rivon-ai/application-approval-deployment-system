@@ -2,14 +2,19 @@
 package_name: src
 
 # Data Files for Training and Testing
-data_file: datasets/data.csv
-# Variables
-# The variable we are attempting to predict (Survival)
-# Pipeline Settings
-pipeline_name: loan_approval_classifier
-pipeline_save_file: loan_approval_classifier_model_output_v
+app_config:
+  data_file: datasets/data.csv
+  save_model_directory: 'trained_models'
+# Model Configuration
+mode_config:
+  model_name: 'loan_approval_classifier.pkl'
+  pipeline_name: 'loan_approval_pipeline.pkl'
+  file_extension: '.pkl'
+  n_neighbors: 5
+  test_size: 0.2
+  random_state: 42
 # Feature Configuration
-features:      # final features to be use
+features:
   num_vars:
     - CoBorrowerTotalMonthlyIncome
     - CoBorrowerAge
@@ -20,54 +25,12 @@ features:      # final features to be use
     - CLTV
     - CreditScore
     - TotalLoanAmount
+    - Approved
   cat_vars:
     - LeadSourceGroup
     - Group
     - LoanPurpose
-  unused_fields:  # Features to drop before pipeline
-    - LoanApproved
-# Data preprocessing
-data_preprocessing:
-  remove_duplicates: true
-  filter_out_invalid_entries: true
-  strip_whitespace: true
-  filter_outliers: true
-  outlier_columns:
-    - DTI
-    - CLTV
-    - TotalLoanAmount
-    - CreditScore
-    - TotalIncome
-  missing_value_imputation:
-    numeric_strategy: mean
-    categorical_strategy: most_frequent
-# set train/test split
-test_size: 0.2
-# to set the random seed
-random_state: 42
-# Model Configuration
-model:
-  type: LogisticRegression
-  solver: lbfgs
-  max_iter: 1000
-  random_state: 42
-# alogrithm parameters like n_estimators and max_depth
-algorithm_params:
-  solver: lbfgs
-  max_iter: 1000
-  random_state: 42
-# Logging and Output Settings
-logging:
-  leverl: INFO
-  log_file: logs/pipeline_execution.log
-# Model Evaluation
-evaluation:
-  metrices:
-    - accuracy
-    - precision
-    - recall
-    - f1
-# Save Model Configuration
-save_model:
-  output_directory: trained_models
-  file_extension: .pkl
+  unused_fields:
+    - Approved
+
+

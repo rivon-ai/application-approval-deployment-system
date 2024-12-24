@@ -2,12 +2,15 @@
 # pipeline contains missing value imputation and encoding, scaling and outliers removal, feature selection and model
 
 from sklearn.pipeline import Pipeline
-from sklearn.linear_model import LogisticRegression
-from .processing.features import FeatureTransformer
-from src.config import Config
+from config.core import ConfigLoader
+from processing.features import MissValImputer, CategoricalEncoder, OutlierHandler, StandardScalerCustom
 
 
-def build_pipeline(config: Config) -> Pipeline:
+# Loading Configuration
+config_path = "config.yml"
+path = ConfigLoader(config_path)
+
+def build_pipeline() -> Pipeline:
     """
     Build the ML pipeline with preprocessing and model.
     The pipeline includes:
@@ -23,18 +26,11 @@ def build_pipeline(config: Config) -> Pipeline:
     Returns:
         Pipeline: A scikit-learn pipeline object.
     """
-    # Define feature transformer
-    feature_transformer = FeatureTransformer(
-        num_vars=config.model_config.num_vars,
-        cat_vars=config.model_config.cat_vars,
-        exclude_column=config.model_config.exclude_column,
-        n_neighbors=config.model_config.n_neighbors
-    )
-    
-    # Define the pipeline
     pipeline_steps = [
-        ('preprocessor', feature_transformer.create_pipeline()),
-        ('classifier', LogisticRegression(**config.model_config.model_params))
+        ('knn_imputer', MissValImputer(numerical_cols=path.config.features.num_vars, categorical_cols=path.config.features.cat_vars, n_neighbors=path.config.mode_config.n_neighbors)),
+        ('ohe', CategoricalEncoder(categorical_cols=path.config.features.cat_vars)),
+        ('outlier_imputer', OutlierHandler(method='median')),
+        ('scaler', StandardScalerCustom(exclude_column=path.config.features.unused_fields))
+
     ]
-    
     return Pipeline(steps=pipeline_steps)

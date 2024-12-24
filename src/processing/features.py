@@ -1,14 +1,12 @@
 import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
-from sklearn.impute import KNNImputer
-from sklearn.impute import SimpleImputer
+import numpy as np
+from sklearn.impute import SimpleImputer, KNNImputer
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
-from sklearn.compose import ColumnTransformer
-from sklearn.pipeline import Pipeline
 
 class MissValImputer(BaseEstimator, TransformerMixin):
     """Custom imputer for handling missing values in numerical and categorical variables."""
-    def __init__(self, num_vars: list, cat_vars: list, n_neighbors: int = 5):
+    def __init__(self, numerical_cols, categorical_cols, n_neighbors: int):
         """
         Initialize the imputer for numerical and categorical variables.
 
@@ -19,9 +17,12 @@ class MissValImputer(BaseEstimator, TransformerMixin):
         cat_vars: list
             List of categorical variable names.
         """
-        self.num_vars = num_vars
-        self.cat_vars = cat_vars
+        self.numerical_cols = numerical_cols
+        self.categorical_cols = categorical_cols
         self.n_neighbors = n_neighbors
+
+        self.numerical_imputer = KNNImputer(n_neighbors=self.n_neighbors)
+        self.categorical_imputer = SimpleImputer(strategy='most_frequent')
 
     def fit(self, X: pd.DataFrame, y: pd.Series = None):
         """
@@ -42,13 +43,8 @@ class MissValImputer(BaseEstimator, TransformerMixin):
         self
             Returns the instance itself.
         """
-        # KNN Imputer for numerical variables
-        self.knn_imputer = KNNImputer(n_neighbors=self.n_neighbors)
-        self.knn_imputer.fit(X[self.num_vars])
-
-        # Simple Imputer for categorical variables (using most frequent for simplicity)
-        self.cat_imputer = SimpleImputer(strategy='most_frequent')
-        self.cat_imputer.fit(X[self.cat_vars])
+        self.numerical_imputer.fit(X[self.numerical_cols])
+        self.categorical_imputer.fit(X[self.categorical_cols])
         
         return self
 
@@ -69,17 +65,14 @@ class MissValImputer(BaseEstimator, TransformerMixin):
         pd.DataFrame
             Transformed DataFrame with imputed missing values.
         """
-        # Impute numerical variables using KNNImputer
-        X[self.num_vars] = self.knn_imputer.transform(X[self.num_vars])
-
-        # Impute categorical variables using SimpleImputer (most frequent strategy)
-        X[self.cat_vars] = self.cat_imputer.transform(X[self.cat_vars])
+        X[self.numerical_cols] = self.numerical_imputer.transform(X[self.numerical_cols])
+        X[self.categorical_cols] = self.categorical_imputer.transform(X[self.categorical_cols])
 
         return X
 
 
-class OutlierHandler:
-    def __init__(self, num_vars: list):
+class OutlierHandler(BaseEstimator, TransformerMixin):
+    def __init__(self, method='median'):
         """
         Initialize OutlierHandler with the given numerical features.
 
@@ -88,8 +81,7 @@ class OutlierHandler:
         num_vars : list
             List of numerical feature names.
         """
-        self.num_vars = num_vars
-
+        self.method = method
 
     def identify_outliers(self, df, clmn):
         """
@@ -105,13 +97,7 @@ class OutlierHandler:
         clmn : str
             The name of the column in which to identify outliers.
         """
-        # Identify outliers using IQR
-        q1 = df[clmn].quantile(0.25)
-        q3 = df[clmn].quantile(0.75)
-        iqr = q3 - q1
-        lower_bound = q1 - 1.5 * iqr
-        upper_bound = q3 + 1.5 * iqr
-        return df[(df[clmn] > lower_bound) & (df[clmn] < upper_bound)]
+        pass
 
 
     def treat_outliers(self, df, clmn, method='mean'):
@@ -158,7 +144,7 @@ class OutlierHandler:
         self
             Returns the instance with stored outlier information.
         """
-        pass
+        return self
 
     def transform(self, X):
         # Treat outliers during transform
@@ -179,13 +165,35 @@ class OutlierHandler:
         pd.DataFrame
             Transformed DataFrame with outliers treated.
         """
-        for clmn in self.num_vars:
-            df = self.identify_outliers(df, clmn)
-        return df
+        X_transformed = X.copy()
+        
+        # Detect and impute outliers only for numeric columns
+        for col in X_transformed.select_dtypes(include=[np.number]).columns:
+            Q1 = X_transformed[col].quantile(0.25)
+            Q3 = X_transformed[col].quantile(0.75)
+            IQR = Q3 - Q1
+            lower_bound = Q1 - 1.5 * IQR
+            upper_bound = Q3 + 1.5 * IQR
+            
+            outliers = X_transformed[(X_transformed[col] < lower_bound) | (X_transformed[col] > upper_bound)].index
+            
+            # Impute the outliers with the specified method
+            if len(outliers) > 0:
+                if self.method == 'median':
+                    impute_value = X_transformed[col].median()
+                elif self.method == 'mean':
+                    impute_value = X_transformed[col].mean()
+                else:
+                    raise ValueError("Invalid method. Choose 'median' or 'mean'.")
+                
+                X_transformed.loc[outliers, col] = impute_value
+        
+        return X_transformed
+        
 
 
 class CategoricalEncoder(BaseEstimator, TransformerMixin):
-    def __init__(self, cat_vars: list):
+    def __init__(self, categorical_cols):
         """
         Initialize the CategoricalEncoder with the given categorical feature names.
 
@@ -201,8 +209,8 @@ class CategoricalEncoder(BaseEstimator, TransformerMixin):
         encoder : None
             The OneHotEncoder object used for encoding categorical features.
         """
-        self.categorical_cols = cat_vars
-        self.ohe = OneHotEncoder(drop='first', sparse_output=False)  # drop='first' to avoid dummy variable trap
+        self.categorical_cols = categorical_cols
+        self.ohe = OneHotEncoder(drop='first', sparse_output=False)
 
     def fit(self, X, y=None):
         """
@@ -237,64 +245,26 @@ class CategoricalEncoder(BaseEstimator, TransformerMixin):
         pd.DataFrame
             Transformed DataFrame with the categorical features encoded.
         """
-        # Apply OneHotEncoding to the categorical columns
-        encoded_cols = pd.DataFrame(self.ohe.transform(X[self.categorical_cols]), 
-                                    columns=self.ohe.get_feature_names_out(self.categorical_cols))
-        
-        # Drop original categorical columns and concatenate the encoded columns
+        X[self.categorical_cols] = X[self.categorical_cols].fillna(0)
+        encoded_cols = pd.DataFrame(self.ohe.transform(X[self.categorical_cols]), columns=self.ohe.get_feature_names_out(self.categorical_cols))
         X = X.drop(columns=self.categorical_cols)
         X = pd.concat([X, encoded_cols], axis=1)
         return X
 
 # Custom StandardScalerWithExclusion to exclude specific column from scaling
-class StandardScalerWithExclusion(BaseEstimator, TransformerMixin):
-    def __init__(self, exclude_column='LoanApproved'):
+class StandardScalerCustom(BaseEstimator, TransformerMixin):
+    def __init__(self, exclude_column):
         self.exclude_column = exclude_column
         self.scaler = StandardScaler()
 
     def fit(self, X, y=None):
-        columns_to_scale = X.select_dtypes(include=['number']).drop(columns=[self.exclude_column], errors='ignore').columns
+        columns_to_scale = X.drop(columns=self.exclude_column).columns
         self.scaler.fit(X[columns_to_scale])
+        
         return self
 
     def transform(self, X):
-        columns_to_scale = X.select_dtypes(include=['number']).drop(columns=[self.exclude_column], errors='ignore').columns
+        columns_to_scale = X.drop(columns=self.exclude_column).columns
         X[columns_to_scale] = self.scaler.transform(X[columns_to_scale])
+        
         return X
-
-class FeatureTransformer:
-    def __init__(self, num_vars: list, cat_vars: list, exclude_column='LoanApproved', n_neighbors=5):
-        self.num_vars = num_vars
-        self.cat_vars = cat_vars
-        self.exclude_column = exclude_column
-        self.n_neighbors = n_neighbors
-
-    def create_pipeline(self):
-        # Create the components for the numerical and categorical transformations
-        miss_val_imputer = MissValImputer(self.num_vars, self.cat_vars, n_neighbors=self.n_neighbors)
-        cat_encoder = CategoricalEncoder(self.cat_vars)
-        outlier_handler = OutlierHandler(self.num_vars)
-        scaler_with_exclusion = StandardScalerWithExclusion(exclude_column=self.exclude_column)
-
-        # Numeric transformation pipeline (missing value imputation, outlier handling, scaling)
-        num_transformer = Pipeline([
-            ('miss_val_imputer', miss_val_imputer),
-            ('outlier_handler', outlier_handler),
-            ('scaler', scaler_with_exclusion)
-        ])
-
-        # Categorical transformation pipeline (missing value imputation, encoding, outlier handling, and scaling)
-        cat_transformer = Pipeline([
-            ('miss_val_imputer', SimpleImputer(strategy='most_frequent')),
-            ('encoder', cat_encoder),
-            ('outlier_handler', outlier_handler),
-            ('scaler_with_exclusion', scaler_with_exclusion)
-        ])
-
-        # ColumnTransformer to apply the respective transformations to numerical and categorical columns
-        preprocessor = ColumnTransformer([
-            ('num', num_transformer, self.num_vars),
-            ('cat', cat_transformer, self.cat_vars)
-        ])
-
-        return preprocessor

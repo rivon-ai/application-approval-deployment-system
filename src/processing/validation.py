@@ -1,25 +1,39 @@
 from typing import List, Optional, Tuple, Union
+
+import numpy as np
 import pandas as pd
+from pydantic import BaseModel, ValidationError
+
+import sys
+from pathlib import Path
+
+file = Path(__file__).resolve()
+parent, root = file.parent, file.parents[1]
+sys.path.append(str(root))
+
+
+from src.config.core import config
+from src.processing.data_manager import pre_pipeline_preparation
 
 
 def validate_inputs(*, input_df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[dict]]:
-    """Validate the input DataFrame for model compatibility.
+    """Check model inputs for unprocessable values."""
+    print("input_df imported successfully inside validation file")
+    print("input_df columns:", input_df.columns )
+    print("input_df shape:", input_df.shape )
+    pre_processed = pre_pipeline_preparation(df=input_df)
+    validated_data = pre_processed[config.modelConfig.features].copy()
+    errors = None
 
-    This function checks the input DataFrame for unprocessable values and 
-    prepares it for model input. It performs the following steps:
-    1. Prints the shape and columns of the input DataFrame for debugging.
-    2. Pre-processes the DataFrame using the pre_pipeline_preparation function.
-    3. Validates the processed data against the defined schema using Pydantic.
-    4. Returns the validated data and any validation errors encountered.
+    try:
+        # replace numpy nans so that pydantic can validate
+        MultipleDataInputs(
+            inputs=validated_data.replace({np.nan: None}).to_dict(orient="records")
+        )
+    except ValidationError as error:
+        errors = error.json()
 
-    Args:
-        input_df (pd.DataFrame): The DataFrame containing input data to be validated.
-
-    Returns:
-        Tuple[pd.DataFrame, Optional[dict]]: A tuple containing the validated DataFrame 
-        and a dictionary of errors if validation fails, otherwise None.
-    """
-    pass
+    return validated_data, errors
 
 
 class DataInputSchema(BaseModel):

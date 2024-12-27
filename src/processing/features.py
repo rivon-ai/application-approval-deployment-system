@@ -1,213 +1,125 @@
+from typing import List
+import sys
 import pandas as pd
+import numpy as np
 from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.preprocessing import OneHotEncoder
+
 
 class MissValImputer(BaseEstimator, TransformerMixin):
     """Custom imputer for handling missing values in numerical and categorical variables."""
+    print("================== MissValImputer started for numerical variables==================")
     def __init__(self, num_vars: list, cat_vars: list):
-        """
-        Initialize the imputer for numerical and categorical variables.
+        if not all(isinstance(var, str) for var in num_vars + cat_vars):
+            raise ValueError("Variables should be a list of strings.")
 
-        Parameters
-        ----------
-        num_vars: list
-            List of numerical variable names.
-        cat_vars: list
-            List of categorical variable names.
-        """
-        pass
+        self.num_vars = num_vars
+        self.cat_vars = cat_vars
 
     def fit(self, X: pd.DataFrame, y: pd.Series = None):
         # Store mean and standard deviation for numerical variables
-        """
-        Compute the mean and standard deviation for numerical variables and mode
-        values for categorical variables for missing value imputation.
+        self.numerical_fill_values = {}
 
-        Parameters
-        ----------
-        X : pd.DataFrame
-            Input dataset.
-        y : pd.Series, optional
-            Target variable, by default None.
+        for var in self.num_vars:
+            mean_value = X[var].mean()
+            std_value = X[var].std()
+            self.numerical_fill_values[var] = (mean_value, std_value)
 
-        Returns
-        -------
-        self
-            Returns the instance itself.
-        """
-        pass
+        # Store mode value for categorical variables
+        self.categorical_fill_values = {}
+
+        for var in self.cat_vars:
+            mode_value = X[var].mode().values[0]
+            self.categorical_fill_values[var] = mode_value
+
+        return self
 
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
-        """
-        Impute missing values in the DataFrame for both numerical and categorical variables.
+        X = X.copy()
 
-        For numerical variables, missing values are imputed using a random distribution
-        based on the mean and standard deviation of the variable. For categorical variables,
-        missing values are imputed with the mode.
+        np.random.seed(0)
 
-        Parameters
-        ----------
-        X : pd.DataFrame
-            Input dataset with potential missing values.
+        # Impute missing values for numerical variables with mean
+        for var in self.num_vars:
+            mean_value, std_value = self.numerical_fill_values[var]
 
-        Returns
-        -------
-        pd.DataFrame
-            Transformed DataFrame with imputed missing values.
-        """
-        pass
+            # Impute missing values using a random distribution
+            null_count = X[var].isnull().sum()
+            null_random_list = np.random.randint(mean_value - std_value, mean_value + std_value, size=null_count)
+            X.loc[np.isnan(X[var]), var] = null_random_list
+            X[var] = X[var].astype(X[var].dtype)  # Ensure the correct data type
+
+        # Impute missing values for categorical variables with mode
+        for var in self.cat_vars:
+            mode_value = self.categorical_fill_values[var]
+            X[var].fillna(mode_value, inplace=True)
+
+        return X
 
 
 class OutlierHandler:
+    print("================== OutlierHandler started for numerical variables==================")
     def __init__(self, num_vars: list):
-        """
-        Initialize OutlierHandler with the given numerical features.
-
-        Parameters
-        ----------
-        num_vars : list
-            List of numerical feature names.
-        """
-        pass
+        self.num_vars = num_vars
+        self.outlier_info = {}
 
     def identify_outliers(self, df, clmn):
-        """
-        Identify outliers in a specified column of a DataFrame using the IQR method.
-        This function calculates the first quartile (Q1), third quartile (Q3),
-        and interquartile range (IQR) of the specified column. It then determines
-        the lower and upper whiskers for outlier detection. The outlier information
-        is stored in the `outlier_info` attribute for the given column.
-        Parameters
-        ----------
-        df : pd.DataFrame
-            The input DataFrame containing the data.
-        clmn : str
-            The name of the column in which to identify outliers.
-        """
-        pass
+        print('DataFrame columns:', df.columns)
+        print('Outliers check for feature:', clmn)
+        # Outliers check
+        Q1 = df[clmn].quantile(0.25)
+        Q3 = df[clmn].quantile(0.75)
+        IQR = Q3 - Q1
+        Lower_Whisker = Q1 - (1.5 * IQR)
+        Upper_Whisker = Q3 + (1.5 * IQR)
+        # Store outlier information
+        self.outlier_info[clmn] = {'Lower_Whisker': Lower_Whisker, 'Upper_Whisker': Upper_Whisker}
 
     def treat_outliers(self, df, clmn, method='mean'):
-        """
-        Treat outliers in a specified column of a DataFrame by replacing them with a calculated value.
-
-        Parameters
-        ----------
-        df : pd.DataFrame
-            The input DataFrame containing the data.
-        clmn : str
-            The name of the column in which to treat outliers.
-        method : str, optional
-            The method to use for treating outliers, by default 'mean'.
-            Currently, only 'mean' is supported, which replaces outliers
-            with the mean value of the column.
-
-        Notes
-        -----
-        Outliers are defined based on the lower and upper whiskers stored
-        in `outlier_info` for the specified column. Values outside these
-        whiskers are considered outliers and will be replaced.
-        """
-        pass
+        if method == 'mean':
+            mean_value = round(df[clmn].mean(), 2)
+            df[clmn] = df[clmn].apply(lambda x: mean_value if
+                                      (x < self.outlier_info[clmn]['Lower_Whisker'] or x > self.outlier_info[clmn]['Upper_Whisker'])
+                                      else x)
 
     def fit(self, X, y=None):
         # Identify and store outlier information during fit
-        """
-        Fit the OutlierHandler by identifying outliers in the numerical features.
+        for col in self.num_vars:
+            self.identify_outliers(X, col)
 
-        This method identifies and stores outlier information for each numerical
-        feature in the dataset using the IQR method. The outlier information
-        is used later during the transform step to treat outliers.
-
-        Parameters
-        ----------
-        X : pd.DataFrame
-            Input DataFrame containing the data with numerical features.
-        y : None
-            Not used, present here for compatibility with sklearn pipelines.
-
-        Returns
-        -------
-        self
-            Returns the instance with stored outlier information.
-        """
-        pass
+        return self
 
     def transform(self, X):
         # Treat outliers during transform
-        """
-        Treat outliers in the given DataFrame by replacing them with a calculated value.
-
-        Outliers are defined based on the lower and upper whiskers stored
-        in `outlier_info` for each numerical feature. Values outside these
-        whiskers are considered outliers and will be replaced.
-
-        Parameters
-        ----------
-        X : pd.DataFrame
-            Input DataFrame containing the data with numerical features.
-
-        Returns
-        -------
-        pd.DataFrame
-            Transformed DataFrame with outliers treated.
-        """
-        pass
+        X = X.copy()
+        for col in self.num_vars:
+            self.treat_outliers(X, col)
+        print("Outliers treatment is done")
+        return X
 
 class CategoricalEncoder(BaseEstimator, TransformerMixin):
+    print("================== Encoding started for categorical variables==================")
     def __init__(self, cat_vars: list):
-        """
-        Initialize the CategoricalEncoder with the given categorical feature names.
-
-        Parameters
-        ----------
-        cat_vars : list
-            List of categorical feature names.
-
-        Attributes
-        ----------
-        cat_vars : list
-            List of categorical feature names.
-        encoder : None
-            The OneHotEncoder object used for encoding categorical features.
-        """
-        pass
+        self.cat_vars = cat_vars
+        self.encoder = None
 
     def fit(self, X, y=None):
-        """
-        Fit the CategoricalEncoder by performing one-hot encoding on the categorical features.
+        # One-Hot Encoding
+        encoder = OneHotEncoder(drop='first', sparse=False)
+        self.encoder = encoder.fit(X[self.cat_vars])
 
-        This method initializes and fits the OneHotEncoder to the specified categorical
-        variables in the input DataFrame, preparing the encoder for transforming
-        the data during the transform step.
-
-        Parameters
-        ----------
-        X : pd.DataFrame
-            Input DataFrame containing the data with categorical features.
-        y : None
-            Not used, present here for compatibility with sklearn pipelines.
-
-        Returns
-        -------
-        self
-            Returns the instance with the fitted OneHotEncoder.
-        """
-        pass
+        return self
 
     def transform(self, X):
-        """
-        Transform the given DataFrame by one-hot encoding the categorical features.
-        This method takes in a DataFrame with categorical features and encodes
-        them using the OneHotEncoder. The method returns a new DataFrame with
-        the encoded categorical features and the non-categorical features.
+        if len(self.cat_vars) == 0:
+            return X
 
-        Parameters
-        ----------
-        X : pd.DataFrame
-            Input DataFrame containing the data with categorical features.
+        # Prefix encoded values with column names
+        OHE_df = pd.DataFrame(self.encoder.transform(X[self.cat_vars]),
+                              columns=self.encoder.get_feature_names_out(self.cat_vars))
 
-        Returns
-        -------
-        pd.DataFrame
-            Transformed DataFrame with the categorical features encoded.
-        """
-        pass
+        num_df = X.drop(self.cat_vars, axis=1).reset_index(drop=True)
+
+        df_encoded = pd.concat([OHE_df, num_df], axis=1)
+
+        return df_encoded

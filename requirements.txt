@@ -1,0 +1,11 @@
+numpy
+pandas
+pydantic
+scikit-learn
+strictyaml
+ruamel.yaml
+joblib
+uvicorn
+fastapi
+pydantic
+requests
